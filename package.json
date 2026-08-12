@@ -1,0 +1,40 @@
+{
+  "name": "virgil",
+  "version": "1.5.10",
+  "description": "AI Video Remaster Engine by Raven",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.raven.virgil",
+    "productName": "Virgil",
+    "copyright": "Raven",
+    "win": {
+      "target": "nsis",
+      "icon": "src/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Virgil"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "extract-zip": "^2.0.1"
+  }
+}

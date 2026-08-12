@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Virgil</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #080810;
+    --bg2:      #0e0e1a;
+    --bg3:      #13131f;
+    --border:   #1e1e32;
+    --border2:  #2a2a45;
+    --accent:   #00e5ff;
+    --accent2:  #7b4fff;
+    --text:     #c8ccd8;
+    --text2:    #6b7080;
+    --text3:    #3a3d4a;
+    --ok:       #00e676;
+    --warn:     #ffab00;
+    --err:      #ff1744;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Rajdhani', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* titlebar */
+  .titlebar {
+    -webkit-app-region: drag;
+    display: flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 12px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .titlebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .titlebar-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .titlebar-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-left: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .titlebar-controls {
+    -webkit-app-region: no-drag;
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+  }
+
+  .win-btn {
+    width: 28px;
+    height: 22px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .win-btn:hover { background: var(--border); color: var(--text); }
+  .win-btn.close:hover { background: var(--err); border-color: var(--err); color: #fff; }
+
+  /* layout */
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  .body { display: flex; flex: 1; overflow: hidden; }
+
+  /* sidebar */
+  .sidebar {
+    width: 200px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0;
+    flex-shrink: 0;
+  }
+
+  .nav-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 0.15em;
+    padding: 0 16px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,255,0.05); }
+  .nav-icon { font-size: 16px; width: 18px; text-align: center; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .gpu-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 0.08em;
+    line-height: 1.8;
+  }
+
+  .gpu-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+  }
+  .gpu-dot.weak    { background: #ff8800; box-shadow: 0 0 6px #ff8800; }
+  .gpu-dot.unknown { background: #888; box-shadow: none; }
+
+  .gpu-warning-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 14px 18px 0;
+    padding: 12px 14px;
+    background: rgba(255, 136, 0, 0.08);
+    border: 1px solid #ff8800;
+    border-radius: 4px;
+  }
+  .gpu-warning-icon {
+    font-size: 22px;
+    color: #ff8800;
+    flex-shrink: 0;
+  }
+  .gpu-warning-body { flex: 1; }
+  .gpu-warning-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #ff8800;
+    margin-bottom: 4px;
+  }
+  .gpu-warning-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+  .gpu-warning-close {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    width: 22px; height: 22px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .gpu-warning-close:hover { color: var(--err); border-color: var(--err); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* main content */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+
+  /* panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* section header */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* dropzone */
+  .dropzone {
+    border: 1px dashed var(--border2);
+    border-radius: 6px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--accent);
+    background: rgba(0,229,255,0.03);
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+    opacity: 0.4;
+  }
+
+  .drop-text {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    letter-spacing: 0.05em;
+  }
+
+  .drop-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 5px;
+    letter-spacing: 0.05em;
+  }
+
+  /* file list */
+  .file-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .file-name { flex: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-size { color: var(--text3); flex-shrink: 0; }
+  .file-remove { color: var(--text3); cursor: pointer; font-size: 14px; transition: color 0.15s; }
+  .file-remove:hover { color: var(--err); }
+
+  /* grid */
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+
+  .config-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
+
+  .config-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* radio options */
+  .opt-list { display: flex; flex-direction: column; gap: 5px; }
+
+  .opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 9px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .opt:hover { background: rgba(255,255,255,0.03); border-color: var(--border); }
+  /* Was border-color:var(--border2) (the same muted grey used on plain
+     hover) + a barely-there 4% tint — selection here read far weaker than
+     .scale-btn.selected's clear accent border a few inches to the right in
+     the same panel. Matched that same visual weight (accent border, 8%
+     tint, accent label) so "what's actually picked" reads at a glance
+     instead of relying on a 6px dot to carry the whole signal. */
+  .opt.selected { border-color: var(--accent); background: rgba(0,229,255,0.08); }
+
+  .opt-radio {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.15s;
+  }
+  .opt.selected .opt-radio { border-color: var(--accent); }
+
+  .opt-radio-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: none;
+  }
+
+  .opt.selected .opt-radio-dot { display: block; }
+
+  .opt-label { font-size: 13px; font-weight: 500; color: var(--text); transition: color 0.15s; }
+  .opt.selected .opt-label { color: var(--accent); }
+  .opt-sub { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+  /* scale buttons */
+  .scale-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .scale-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 12px;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+  }
+  .scale-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .scale-btn.selected { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.08); }
+
+  /* output path */
+  .output-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+  }
+  .output-path { flex: 1; }
+  .output-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .output-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* progress */
+  .progress-section { margin-bottom: 16px; display: none; }
+  .progress-section.show { display: block; }
+
+  .prog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .prog-label { font-family: var(--mono); font-size: 10px; color: var(--text2); letter-spacing: 0.05em; }
+  .prog-pct { font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: 600; }
+
+  .prog-track { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; margin-bottom: 6px; }
+  .prog-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.4s; width: 0%; }
+
+  .log-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    max-height: 100px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+
+  .log-line { font-size: 10px; color: var(--text3); line-height: 1.7; }
+  .log-line::before { content: '> '; color: var(--text3); }
+  .log-line.ok { color: var(--ok); }
+  .log-line.ok::before { color: var(--ok); }
+  .log-line.warn { color: var(--warn); }
+  .log-line.warn::before { color: var(--warn); }
+  .log-line.err { color: var(--err); }
+  .log-line.err::before { color: var(--err); }
+
+  /* action buttons */
+  .action-row { display: flex; gap: 8px; }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 10px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    border: 1px solid var(--border2);
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .btn-primary {
+    flex: 1;
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-primary:hover:not(:disabled) { background: #33eaff; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text2);
+  }
+  .btn-ghost:hover { border-color: var(--border2); color: var(--text); background: var(--bg3); }
+
+  /* setup panel */
+  .setup-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .setup-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 6px;
+    letter-spacing: 0.1em;
+  }
+
+  .setup-desc {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .tool-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text3);
+    flex-shrink: 0;
+  }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.err { background: var(--err); }
+
+  /* about panel */
+  .about-hero {
+    text-align: center;
+    padding: 30px 0 20px;
+  }
+
+  .about-logo-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px; height: 80px;
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    margin-bottom: 14px;
+  }
+
+  .about-name {
+    font-family: var(--mono);
+    font-size: 22px;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .about-tagline {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+  }
+
+  .about-specs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .spec-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px;
+    font-family: var(--mono);
+  }
+
+  .spec-key { font-size: 9px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .spec-val { font-size: 12px; color: var(--text); }
+
+  /* ───────────── polish pass ───────────── */
+
+  /* Neon scrollbars — Chromium's default grey ones break the mood */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: linear-gradient(var(--accent2), var(--accent)); border: 2px solid var(--bg2); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: linear-gradient(#9b6bff, #33eaff); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+
+  /* Primary action button glows when it's ready to fire */
+  .btn-primary:hover:not(:disabled) { box-shadow: 0 0 18px rgba(0,229,255,0.4); }
+
+  /* Progress fill leaves a faint neon trail */
+  .prog-fill { box-shadow: 0 0 8px rgba(0,229,255,0.5); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="titlebar">
+    <div class="titlebar-logo">
+      <svg class="logo-icon" viewBox="0 0 22 22" fill="none">
+        <polygon points="11,2 20,7 20,15 11,20 2,15 2,7" stroke="#00e5ff" stroke-width="1" fill="none"/>
+        <polygon points="11,6 16,9 16,13 11,16 6,13 6,9" stroke="#00e5ff" stroke-width="0.5" fill="rgba(0,229,255,0.08)"/>
+        <line x1="11" y1="2" x2="11" y2="6" stroke="#00e5ff" stroke-width="0.5"/>
+        <line x1="20" y1="7" x2="16" y2="9" stroke="#00e5ff" stroke-width="0.5"/>
+        <line x1="20" y1="15" x2="16" y2="13" stroke="#00e5ff" stroke-width="0.5"/>
+        <line x1="11" y1="20" x2="11" y2="16" stroke="#00e5ff" stroke-width="0.5"/>
+        <line x1="2" y1="15" x2="6" y2="13" stroke="#00e5ff" stroke-width="0.5"/>
+        <line x1="2" y1="7" x2="6" y2="9" stroke="#00e5ff" stroke-width="0.5"/>
+        <circle cx="11" cy="11" r="2" fill="#00e5ff"/>
+      </svg>
+      <span class="titlebar-name">Virgil</span>
+      <span class="titlebar-sub">// AI VIDEO REMASTER v<span id="titlebarVersion">1.5.10</span></span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="win-btn" onclick="window.virgil.minimize()">─</button>
+      <button class="win-btn" onclick="window.virgil.maximize()">□</button>
+      <button class="win-btn close" onclick="window.virgil.close()">✕</button>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="sidebar">
+      <div class="nav-label">Navigation</div>
+      <div class="nav-item active" onclick="switchPanel('remaster', this)">
+        <span class="nav-icon">⬡</span> Remaster
+      </div>
+      <div class="nav-item" onclick="switchPanel('setup', this)">
+        <span class="nav-icon">⚙</span> Setup
+      </div>
+      <div class="nav-item" onclick="switchPanel('about', this)">
+        <span class="nav-icon">◈</span> About
+      </div>
+      <div class="sidebar-footer">
+        <div class="gpu-badge" id="gpuBadge">
+          <span class="gpu-dot"></span>VIRGIL v<span id="sidebarVersion">1.5.10</span><br>
+          VULKAN · REALESRGAN<br>
+          <span id="gpuTierText">DETECTING GPU...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+
+      <!-- GPU warning banner — shows once after detection if hardware is weak -->
+      <div id="gpuWarningBanner" class="gpu-warning-banner" style="display:none">
+        <div class="gpu-warning-icon">⚠</div>
+        <div class="gpu-warning-body">
+          <div class="gpu-warning-title">SLOW HARDWARE DETECTED</div>
+          <div class="gpu-warning-text" id="gpuWarningText"></div>
+        </div>
+        <button class="gpu-warning-close" onclick="document.getElementById('gpuWarningBanner').style.display='none'" title="Dismiss">✕</button>
+      </div>
+
+      <!-- REMASTER PANEL -->
+      <div class="panel active" id="panel-remaster">
+
+        <div class="section-header">
+          <span class="section-title">// Drop Videos</span>
+          <div class="section-line"></div>
+        </div>
+
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+          <input type="file" id="fileInput" multiple accept="video/*" style="display:none">
+          <div class="drop-icon">⬡</div>
+          <div class="drop-text">Drop video files or click to browse</div>
+          <div class="drop-sub">MKV · MP4 · AVI · MOV · WMV</div>
+        </div>
+
+        <div class="file-list" id="fileList"></div>
+
+        <div class="section-header">
+          <span class="section-title">// Config</span>
+          <div class="section-line"></div>
+        </div>
+
+        <div class="config-grid">
+          <div class="config-card">
+            <div class="config-label">Content Type</div>
+            <div class="opt-list" id="contentType">
+              <div class="opt selected" data-val="anime" onclick="selectOpt(this,'contentType')">
+                <div class="opt-radio"><div class="opt-radio-dot"></div></div>
+                <div><div class="opt-label">Anime / Cartoon</div><div class="opt-sub">DBZ · Batman TAS · GT</div></div>
+              </div>
+              <div class="opt" data-val="live" onclick="selectOpt(this,'contentType')">
+                <div class="opt-radio"><div class="opt-radio-dot"></div></div>
+                <div><div class="opt-label">Live Action</div><div class="opt-sub">Series · Movies</div></div>
+              </div>
+              <div class="opt" data-val="auto" onclick="selectOpt(this,'contentType')">
+                <div class="opt-radio"><div class="opt-radio-dot"></div></div>
+                <div><div class="opt-label">Auto Detect</div><div class="opt-sub">Virgil decides</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="config-card">
+            <div class="config-label">Target Resolution</div>
+            <div class="scale-row" id="scaleGroup" style="margin-bottom:14px">
+              <button class="scale-btn" onclick="selectScale(this)">720p</button>
+              <button class="scale-btn selected" onclick="selectScale(this)">1080p</button>
+              <button class="scale-btn" onclick="selectScale(this)">1440p</button>
+            </div>
+            <div class="config-label">Enhancement Mode</div>
+            <div class="opt-list" id="enhance">
+              <div class="opt selected" data-val="balanced" onclick="selectOpt(this,'enhance')">
+                <div class="opt-radio"><div class="opt-radio-dot"></div></div>
+                <div><div class="opt-label">Balanced</div><div class="opt-sub">Fast · animevideov3</div></div>
+              </div>
+              <div class="opt" data-val="max" onclick="selectOpt(this,'enhance')">
+                <div class="opt-radio"><div class="opt-radio-dot"></div></div>
+                <div><div class="opt-label">Max Quality</div><div class="opt-sub">Slower · plus model 4×</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-header">
+          <span class="section-title">// Output</span>
+          <div class="section-line"></div>
+        </div>
+
+        <div class="output-row">
+          <span style="color:var(--text3)">⬡</span>
+          <span class="output-path" id="outputPath">Loading…</span>
+          <button class="output-btn" onclick="changeOutput()">Change</button>
+          <button class="output-btn" onclick="openOutput()">Open</button>
+        </div>
+
+        <div class="section-header">
+          <span class="section-title">// Audio Track</span>
+          <div class="section-line"></div>
+        </div>
+
+        <div class="output-row" id="audioRow">
+          <span style="color:var(--text3)">⬡</span>
+          <span class="output-path" id="audioStatus">Load a file to detect audio tracks</span>
+          <select id="audioTrackSelect" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:3px 6px;display:none"></select>
+        </div>
+
+        <div class="output-row" style="margin-top:8px">
+          <span style="color:var(--text3)">⚙</span>
+          <span class="output-path" style="color:var(--text3);font-size:11px">Advanced (sync is auto-detected)</span>
+          <button class="btn" onclick="toggleAdvanced()" id="advBtn" style="padding:4px 10px;font-size:10px">SHOW</button>
+        </div>
+
+        <div class="output-row" id="advancedRow" style="margin-top:8px;display:none">
+          <span style="color:var(--text3)">⏱</span>
+          <span class="output-path">Manual audio offset (seconds)</span>
+          <input type="range" id="audioOffsetSlider" min="-10" max="10" step="0.5" value="0" style="flex:1;accent-color:var(--accent)">
+          <span id="audioOffsetVal" style="color:var(--accent);font-family:var(--mono);font-size:11px;min-width:40px;text-align:right">0.0s</span>
+        </div>
+
+        <div class="output-row" style="margin-top:8px">
+          <span style="color:var(--text3)">🎵</span>
+          <span class="output-path">Keep all audio tracks (raw copy, no offset)</span>
+          <input type="checkbox" id="keepAllAudio" style="accent-color:var(--accent)">
+        </div>
+
+        <div class="output-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border2)">
+          <span style="color:var(--text3)">⚡</span>
+          <span class="output-path">Quick re-merge (no re-upscale)</span>
+          <button class="btn" onclick="quickRemerge()" style="padding:6px 14px;font-size:11px">REMERGE</button>
+        </div>
+
+        <div class="progress-section" id="progressSection">
+          <div class="prog-header">
+            <span class="prog-label" id="progLabel">INITIALIZING...</span>
+            <span class="prog-pct" id="progPct">0%</span>
+            <button class="btn" id="cancelBtn" onclick="cancelRun()" style="margin-left:auto;padding:4px 12px;font-size:10px;border-color:var(--err);color:var(--err);display:none">✕ CANCEL</button>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+          <div class="log-box" id="logBox"></div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="startBtn" onclick="startProcess()">▶ START REMASTER</button>
+          <button class="btn btn-ghost" onclick="clearFiles()">CLEAR</button>
+        </div>
+      </div>
+
+      <!-- SETUP PANEL -->
+      <div class="panel" id="panel-setup">
+        <div class="section-header">
+          <span class="section-title">// First Time Setup</span>
+          <div class="section-line"></div>
+        </div>
+
+        <div class="setup-card">
+          <div class="setup-title">Required Components</div>
+          <div class="setup-desc">Virgil needs two free tools to process your videos. Click Install and it handles everything automatically — no admin required.</div>
+
+          <div class="tool-status">
+            <div class="status-dot" id="ffmpegDot"></div>
+            <span>FFmpeg — video encoder / decoder</span>
+          </div>
+          <div class="tool-status">
+            <div class="status-dot" id="video2xDot"></div>
+            <span>Video2X — AI upscaling engine</span>
+          </div>
+        </div>
+
+        <div class="progress-section" id="setupProgress">
+          <div class="prog-header">
+            <span class="prog-label" id="setupLabel">INSTALLING...</span>
+            <span class="prog-pct" id="setupPct">0%</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="setupFill"></div></div>
+          <div class="log-box" id="setupLog"></div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="installBtn" onclick="runInstall()">⬡ INSTALL COMPONENTS</button>
+          <button class="btn btn-ghost" onclick="checkTools()">CHECK STATUS</button>
+        </div>
+      </div>
+
+      <!-- ABOUT PANEL -->
+      <div class="panel" id="panel-about">
+        <div class="about-hero">
+          <div class="about-logo-wrap">
+            <svg viewBox="0 0 60 60" width="60" height="60" fill="none">
+              <polygon points="30,4 54,18 54,42 30,56 6,42 6,18" stroke="#00e5ff" stroke-width="1.5" fill="none"/>
+              <polygon points="30,14 44,22 44,38 30,46 16,38 16,22" stroke="#00e5ff" stroke-width="0.7" fill="rgba(0,229,255,0.06)"/>
+              <circle cx="30" cy="30" r="5" fill="#00e5ff" opacity="0.9"/>
+              <line x1="30" y1="4" x2="30" y2="14" stroke="#00e5ff" stroke-width="0.7"/>
+              <line x1="54" y1="18" x2="44" y2="22" stroke="#00e5ff" stroke-width="0.7"/>
+              <line x1="54" y1="42" x2="44" y2="38" stroke="#00e5ff" stroke-width="0.7"/>
+              <line x1="30" y1="56" x2="30" y2="46" stroke="#00e5ff" stroke-width="0.7"/>
+              <line x1="6" y1="42" x2="16" y2="38" stroke="#00e5ff" stroke-width="0.7"/>
+              <line x1="6" y1="18" x2="16" y2="22" stroke="#00e5ff" stroke-width="0.7"/>
+            </svg>
+          </div>
+          <div class="about-name">VIRGIL</div>
+          <div class="about-tagline">AI VIDEO REMASTER ENGINE // BUILT FOR RAVEN</div>
+        </div>
+
+        <div class="about-specs">
+          <div class="spec-card"><div class="spec-key">Version</div><div class="spec-val" id="aboutVersion">1.5.10</div></div>
+          <div class="spec-card"><div class="spec-key">Engine</div><div class="spec-val">Video2X + FFmpeg</div></div>
+          <div class="spec-card"><div class="spec-key">AI Model</div><div class="spec-val">Real-ESRGAN</div></div>
+          <div class="spec-card"><div class="spec-key">Built by</div><div class="spec-val">Raven</div></div>
+        </div>
+
+        <div style="margin-top:24px;padding:18px;border:1px solid var(--border2);border-radius:6px;background:rgba(0,229,255,0.02)">
+          <div style="color:var(--accent);font-family:var(--mono);font-size:12px;margin-bottom:10px;letter-spacing:2px">// CREDITS</div>
+          <div style="font-size:12px;line-height:1.7;color:var(--text2)">
+            Virgil orchestrates these brilliant open-source projects:<br><br>
+            <span style="color:var(--text)">• <a href="https://github.com/k4yt3x/video2x" style="color:var(--accent)">Video2X</a></span> — frame extraction & processing pipeline by K4YT3X<br>
+            <span style="color:var(--text)">• <a href="https://github.com/xinntao/Real-ESRGAN" style="color:var(--accent)">Real-ESRGAN</a></span> — AI super-resolution models<br>
+            <span style="color:var(--text)">• <a href="https://ffmpeg.org/" style="color:var(--accent)">FFmpeg</a></span> — encoding, muxing, demuxing<br><br>
+            Virgil's value is in the integration, the polish, and the real-world bug-fixes (audio sync drift, FPS metadata corruption, sub stream removal, multi-track handling). The AI doing the upscaling is open-source and free — full credit to the original authors above.
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding:18px;border:1px solid var(--border2);border-radius:6px">
+          <div style="color:var(--accent);font-family:var(--mono);font-size:12px;margin-bottom:10px;letter-spacing:2px">// LICENSE</div>
+          <div style="font-size:12px;line-height:1.7;color:var(--text2)">
+            Virgil is licensed for personal use. Video2X is licensed under GPL-3.0. Real-ESRGAN is BSD-3. FFmpeg is LGPL/GPL depending on build. You may not redistribute Virgil itself, but you are free to use it however you like on your own content.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const files = []
+let outputDir = ''  // populated from main process on load — works on any machine
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // get default output dir from main (uses os.homedir on the user's actual machine)
+  if (window.virgil) {
+    try {
+      const version = await window.virgil.getVersion()
+      for (const id of ['titlebarVersion', 'sidebarVersion', 'aboutVersion']) {
+        const el = document.getElementById(id)
+        if (el && version) el.textContent = version
+      }
+    } catch(e) {}
+    try {
+      const def = await window.virgil.getDefaultOutput()
+      if (def) {
+        outputDir = def
+        const out = document.getElementById('outputPath')
+        if (out) out.textContent = def
+      }
+    } catch(e) {}
+    // Detect GPU and show estimated time — fires async, doesn't block boot
+    window.virgil.detectSystem().then(updateGpuUI).catch(() => {})
+  }
+  const slider = document.getElementById('audioOffsetSlider')
+  const label = document.getElementById('audioOffsetVal')
+  if (slider && label) {
+    const update = () => { label.textContent = (parseFloat(slider.value)).toFixed(1) + 's' }
+    slider.addEventListener('input', update)
+    update()
+  }
+  const keepBox = document.getElementById('keepAllAudio')
+  if (keepBox) {
+    const syncDim = () => {
+      const dim = keepBox.checked
+      const trackSel = document.getElementById('audioTrackSelect')
+      const sliderEl = document.getElementById('audioOffsetSlider')
+      const valLabel = document.getElementById('audioOffsetVal')
+      if (trackSel) { trackSel.disabled = dim; trackSel.style.opacity = dim ? 0.35 : 1 }
+      if (sliderEl) { sliderEl.disabled = dim; sliderEl.style.opacity = dim ? 0.35 : 1 }
+      if (valLabel) { valLabel.style.opacity = dim ? 0.35 : 1 }
+    }
+    keepBox.addEventListener('change', syncDim)
+    syncDim()
+  }
+})
+
+async function quickRemerge() {
+  if (!window.virgil) return
+  const upscaled = await window.virgil.pickFiles()
+  if (!upscaled || !upscaled.length) return
+  appendLog(`Picked upscaled: ${upscaled[0]}`, 'info')
+  appendLog('Now pick the ORIGINAL source file (with audio)...', 'info')
+  const original = await window.virgil.pickFiles()
+  if (!original || !original.length) return
+  appendLog(`Picked original: ${original[0]}`, 'info')
+  const audioOffset = parseFloat(document.getElementById("audioOffsetSlider")?.value || "0")
+  const keepAllAudio = document.getElementById("keepAllAudio")?.checked || false
+  const result = await window.virgil.remergeAudio({
+    upscaledFile: upscaled[0],
+    originalFile: original[0],
+    audioOffset,
+    outputDir,
+    keepAllAudio
+  })
+  if (result?.success) {
+    appendLog(`Re-merge done: ${result.outFile}`, 'ok')
+  } else {
+    appendLog(`Re-merge failed: ${result?.error || 'unknown'}`, 'err')
+  }
+}
+
+const LOG_LINE_CAP = 500
+function trimLogBox(box) {
+  while (box.children.length > LOG_LINE_CAP) box.removeChild(box.firstChild)
+}
+function appendLog(msg, type) {
+  const box = document.getElementById('logBox')
+  if (!box) return
+  const line = document.createElement('div')
+  line.className = 'log-line' + (type ? ' ' + type : '')
+  line.textContent = msg
+  box.appendChild(line)
+  trimLogBox(box)
+  box.scrollTop = box.scrollHeight
+}
+
+function cancelRun() {
+  if (!window.virgil) return
+  if (!confirm('Cancel current job? Partial output will be deleted.')) return
+  window.virgil.cancelProcess()
+  document.getElementById('cancelBtn').style.display = 'none'
+}
+
+function toggleAdvanced() {
+  const row = document.getElementById('advancedRow')
+  const btn = document.getElementById('advBtn')
+  if (!row || !btn) return
+  const showing = row.style.display !== 'none'
+  row.style.display = showing ? 'none' : 'flex'
+  btn.textContent = showing ? 'SHOW' : 'HIDE'
+}
+
+function switchPanel(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'))
+  document.getElementById('panel-' + name).classList.add('active')
+  el.classList.add('active')
+  if (name === 'setup') checkTools()
+}
+
+function selectOpt(el, group) {
+  document.querySelectorAll('#' + group + ' .opt').forEach(o => o.classList.remove('selected'))
+  el.classList.add('selected')
+}
+
+function selectScale(el) {
+  document.querySelectorAll('#scaleGroup .scale-btn').forEach(b => b.classList.remove('selected'))
+  el.classList.add('selected')
+}
+
+async function probeTracks(filePath) {
+  if (!window.virgil) return
+  const sel = document.getElementById("audioTrackSelect")
+  const status = document.getElementById("audioStatus")
+  status.textContent = "Detecting audio tracks..."
+  sel.style.display = "none"
+  const result = await window.virgil.probeTracks(filePath)
+  if (result && result.tracks && result.tracks.length > 0) {
+    sel.innerHTML = result.tracks.map((t,i) => `<option value="${i}">Track ${i+1} — ${t.language.toUpperCase()} ${t.codec.toUpperCase()} ${t.title ? "· "+t.title : ""}</option>`).join("")
+    sel.style.display = "inline-block"
+    // auto-select English if found
+    const engIdx = result.tracks.findIndex(t => {
+      const lang = (t.language || '').toLowerCase()
+      return lang === 'eng' || lang === 'en' || lang === 'english'
+    })
+    if (engIdx >= 0) {
+      sel.value = String(engIdx)
+      status.textContent = `${result.tracks.length} tracks found · auto-selected English (track ${engIdx + 1})`
+    } else {
+      status.textContent = `${result.tracks.length} audio track(s) found — pick one:`
+    }
+  } else {
+    status.textContent = "No audio tracks detected"
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]))
+}
+
+function renderFiles() {
+  const list = document.getElementById('fileList')
+  // Build once and escape filenames — a name with < > & or quotes used to break
+  // the row markup (and could break the inline onclick). innerHTML += in a loop
+  // also rebuilt the whole list every iteration; one assignment is cleaner.
+  list.innerHTML = files.map((f, i) => {
+    const size = f.size ? (f.size / 1024 / 1024).toFixed(1) + ' MB' : ''
+    const name = escapeHtml(f.name || f)
+    return `<div class="file-item">
+      <span style="color:var(--accent);font-size:12px">▶</span>
+      <span class="file-name">${name}</span>
+      <span class="file-size">${size}</span>
+      <span class="file-remove" onclick="removeFile(${i})">✕</span>
+    </div>`
+  }).join('')
+}
+
+function removeFile(i) { files.splice(i, 1); renderFiles() }
+function clearFiles() { files.length = 0; renderFiles() }
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  Array.from(e.target.files).forEach(f => files.push(f))
+  renderFiles()
+  if (files.length > 0 && window.virgil) probeTracks(files[0].path || files[0])
+})
+
+const dz = document.getElementById('dropzone')
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag') })
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'))
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag')
+  Array.from(e.dataTransfer.files).forEach(f => { if (f.type.startsWith('video/')) files.push(f) })
+  renderFiles()
+  if (files.length > 0 && window.virgil) probeTracks(files[0].path || files[0])
+})
+
+async function changeOutput() {
+  if (!window.virgil) return
+  const picked = await window.virgil.pickOutput()
+  if (picked) { outputDir = picked; document.getElementById('outputPath').textContent = picked }
+}
+
+function openOutput() {
+  if (window.virgil) window.virgil.openFolder(outputDir)
+}
+
+function addLog(boxId, msg, type) {
+  const box = document.getElementById(boxId)
+  if (!box) return
+  const line = document.createElement('div')
+  line.className = 'log-line' + (type ? ' ' + type : '')
+  line.textContent = msg
+  box.appendChild(line)
+  trimLogBox(box)
+  box.scrollTop = box.scrollHeight
+}
+
+async function startProcess() {
+  if (!window.virgil) { alert('Run via Electron app'); return }
+  if (files.length === 0) { addLog('logBox', 'No files queued', 'err'); document.getElementById('progressSection').classList.add('show'); return }
+
+  const contentType = document.querySelector('#contentType .opt.selected')?.dataset?.val || 'anime'
+  const scale = document.querySelector('#scaleGroup .scale-btn.selected')?.textContent?.trim().toLowerCase() || '1080p'
+  const enhance = document.querySelector('#enhance .opt.selected')?.dataset?.val || 'balanced'
+
+  document.getElementById('progressSection').classList.add('show')
+  document.getElementById('logBox').innerHTML = ''
+  document.getElementById('startBtn').disabled = true
+  document.getElementById('cancelBtn').style.display = 'inline-block'
+
+  window.virgil.removeAllListeners('process-progress')
+  window.virgil.onProcessProgress(({ msg, pct, type }) => {
+    document.getElementById('progFill').style.width = pct + '%'
+    document.getElementById('progPct').textContent = pct + '%'
+    document.getElementById('progLabel').textContent = msg.toUpperCase()
+    addLog('logBox', msg, type)
+  })
+
+  for (const f of files) {
+    const filePath = f.path || f
+    const audioTrack = parseInt(document.getElementById("audioTrackSelect")?.value || "0")
+    const audioOffset = parseFloat(document.getElementById("audioOffsetSlider")?.value || "0")
+    const keepAllAudio = document.getElementById("keepAllAudio")?.checked || false
+  const result = await window.virgil.processVideo({ filePath, contentType, scale, outputDir, audioTrack, audioOffset, keepAllAudio, enhance })
+    if (result && result.cancelled) break
+  }
+
+  document.getElementById('startBtn').disabled = false
+  document.getElementById('cancelBtn').style.display = 'none'
+}
+
+async function runInstall() {
+  if (!window.virgil) return
+  document.getElementById('setupProgress').classList.add('show')
+  document.getElementById('setupLog').innerHTML = ''
+  document.getElementById('installBtn').disabled = true
+
+  window.virgil.removeAllListeners('install-progress')
+  window.virgil.onInstallProgress(({ msg, pct, type }) => {
+    document.getElementById('setupFill').style.width = pct + '%'
+    document.getElementById('setupPct').textContent = pct + '%'
+    document.getElementById('setupLabel').textContent = msg.toUpperCase()
+    addLog('setupLog', msg, type)
+  })
+
+  await window.virgil.installTools()
+  document.getElementById('installBtn').disabled = false
+  checkTools()
+}
+
+async function checkTools() {
+  if (!window.virgil) return
+  const { ffmpeg, video2x } = await window.virgil.checkTools()
+  document.getElementById('ffmpegDot').className = 'status-dot ' + (ffmpeg ? 'ok' : 'err')
+  document.getElementById('video2xDot').className = 'status-dot ' + (video2x ? 'ok' : 'err')
+}
+
+function updateGpuUI(info) {
+  if (!info) return
+  const tierText = document.getElementById('gpuTierText')
+  const dot = document.querySelector('.gpu-dot')
+  if (!tierText) return
+
+  if (!info.ok || !info.primary) {
+    tierText.textContent = 'GPU: UNKNOWN'
+    if (dot) dot.classList.add('unknown')
+    return
+  }
+
+  const p = info.primary
+  // Shorten the GPU name for the sidebar (it's tight)
+  const shortName = (p.name || 'Unknown').replace(/\(R\)|NVIDIA |GeForce |\(TM\)/g, '').trim().slice(0, 28)
+  tierText.innerHTML = `${shortName}<br><span style="opacity:0.6">~${info.estimatedMinutesPerEpisode} min / episode</span>`
+
+  if (dot) {
+    if (p.tier === 'integrated' || p.tier === 'weak') dot.classList.add('weak')
+    else if (p.tier === 'unknown') dot.classList.add('unknown')
+  }
+
+  // Show warning banner for weak/integrated GPUs
+  if (info.warning) {
+    const banner = document.getElementById('gpuWarningBanner')
+    const text = document.getElementById('gpuWarningText')
+    if (banner && text) {
+      text.textContent = info.warning
+      banner.style.display = 'flex'
+    }
+  }
+}
+
+if (window.virgil) checkTools()
+</script>
+</body>
+</html>
