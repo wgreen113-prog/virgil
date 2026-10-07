@@ -313,6 +313,20 @@
   .file-size { color: var(--text3); flex-shrink: 0; }
   .file-remove { color: var(--text3); cursor: pointer; font-size: 14px; transition: color 0.15s; }
   .file-remove:hover { color: var(--err); }
+  .file-mark { color: var(--accent); font-size: 12px; width: 12px; text-align: center; flex-shrink: 0; }
+  .file-item.active { border-color: var(--accent); background: rgba(0,229,255,0.06); }
+  .file-item.active .file-mark { animation: batchPulse 1.2s ease-in-out infinite; }
+  .file-item.done { opacity: 0.6; }
+  .file-item.done .file-mark { color: var(--ok); }
+  .file-item.failed .file-mark, .file-item.cancelled .file-mark { color: var(--err); }
+  @keyframes batchPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  /* batch (multi-episode) status */
+  .batch-info { display: none; margin-bottom: 10px; }
+  .batch-name { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .batch-overall-row { display: flex; align-items: center; gap: 10px; margin-top: 5px; font-family: var(--mono); font-size: 10px; color: var(--text2); }
+  .batch-track { flex: 1; height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+  .batch-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.3s; }
 
   /* grid */
   .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
@@ -766,6 +780,14 @@
         </div>
 
         <div class="progress-section" id="progressSection">
+          <div class="batch-info" id="batchInfo">
+            <div class="batch-name" id="batchName"></div>
+            <div class="batch-overall-row" id="batchOverallRow">
+              <span>OVERALL</span>
+              <div class="batch-track"><div class="batch-fill" id="batchFill"></div></div>
+              <span id="batchPct">0%</span>
+            </div>
+          </div>
           <div class="prog-header">
             <span class="prog-label" id="progLabel">INITIALIZING...</span>
             <span class="prog-pct" id="progPct">0%</span>
@@ -1024,20 +1046,47 @@ function renderFiles() {
   // Build once and escape filenames — a name with < > & or quotes used to break
   // the row markup (and could break the inline onclick). innerHTML += in a loop
   // also rebuilt the whole list every iteration; one assignment is cleaner.
+  const marks = { done: '✓', failed: '✗', cancelled: '✗', active: '●' }
   list.innerHTML = files.map((f, i) => {
     const size = f.size ? (f.size / 1024 / 1024).toFixed(1) + ' MB' : ''
     const name = escapeHtml(f.name || f)
-    return `<div class="file-item">
-      <span style="color:var(--accent);font-size:12px">▶</span>
+    const st = (batch && batch.status[i]) || ''
+    const remove = (batch && batch.running) ? '' : `<span class="file-remove" onclick="removeFile(${i})">✕</span>`
+    return `<div class="file-item ${st}">
+      <span class="file-mark">${marks[st] || '▶'}</span>
       <span class="file-name">${name}</span>
       <span class="file-size">${size}</span>
-      <span class="file-remove" onclick="removeFile(${i})">✕</span>
+      ${remove}
     </div>`
   }).join('')
 }
 
-function removeFile(i) { files.splice(i, 1); renderFiles() }
-function clearFiles() { files.length = 0; renderFiles() }
+function removeFile(i) { if (batch && batch.running) return; files.splice(i, 1); batch = null; renderFiles() }
+function clearFiles() { if (batch && batch.running) return; files.length = 0; batch = null; renderFiles() }
+
+// Multi-episode run state: status[i] is 'active' | 'done' | 'failed' | 'cancelled' (unset = queued)
+let batch = null
+const BASE_TITLE = document.title
+
+function fileDisplayName(f) {
+  return f.name || String(f).split(/[\\/]/).pop()
+}
+
+function updateBatchUI(pct) {
+  if (!batch) return
+  if (typeof pct === 'number') batch.filePct = pct
+  const total = files.length
+  document.getElementById('batchInfo').style.display = 'block'
+  document.getElementById('batchName').textContent =
+    (total > 1 ? `EPISODE ${batch.idx + 1} / ${total} — ` : '') + fileDisplayName(files[batch.idx])
+  document.getElementById('batchOverallRow').style.display = total > 1 ? 'flex' : 'none'
+  const overall = Math.min(100, Math.round(((batch.idx + batch.filePct / 100) / total) * 100))
+  document.getElementById('batchFill').style.width = overall + '%'
+  document.getElementById('batchPct').textContent = overall + '%'
+  document.title = total > 1
+    ? `Virgil — ${batch.idx + 1}/${total} · ${batch.filePct}%`
+    : `Virgil — ${batch.filePct}%`
+}
 
 document.getElementById('fileInput').addEventListener('change', function(e) {
   Array.from(e.target.files).forEach(f => files.push(f))
@@ -1089,23 +1138,50 @@ async function startProcess() {
   document.getElementById('startBtn').disabled = true
   document.getElementById('cancelBtn').style.display = 'inline-block'
 
+  batch = { idx: 0, filePct: 0, status: [], running: true }
+
   window.virgil.removeAllListeners('process-progress')
   window.virgil.onProcessProgress(({ msg, pct, type }) => {
     document.getElementById('progFill').style.width = pct + '%'
     document.getElementById('progPct').textContent = pct + '%'
     document.getElementById('progLabel').textContent = msg.toUpperCase()
     addLog('logBox', msg, type)
+    updateBatchUI(pct)
   })
 
-  for (const f of files) {
-    const filePath = f.path || f
+  // files can grow mid-run (more dropped in), so re-read files.length each pass
+  for (let i = 0; i < files.length; i++) {
+    const filePath = files[i].path || files[i]
     const audioTrack = parseInt(document.getElementById("audioTrackSelect")?.value || "0")
     const audioOffset = parseFloat(document.getElementById("audioOffsetSlider")?.value || "0")
     const keepAllAudio = document.getElementById("keepAllAudio")?.checked || false
-  const result = await window.virgil.processVideo({ filePath, contentType, scale, outputDir, audioTrack, audioOffset, keepAllAudio, enhance })
+    batch.idx = i
+    batch.status[i] = 'active'
+    renderFiles()
+    updateBatchUI(0)
+    addLog('logBox', `── ${files.length > 1 ? `Episode ${i + 1} of ${files.length}: ` : ''}${fileDisplayName(files[i])} ──`, 'info')
+    let result
+    try {
+      result = await window.virgil.processVideo({ filePath, contentType, scale, outputDir, audioTrack, audioOffset, keepAllAudio, enhance })
+    } catch (e) {
+      result = { success: false }
+      addLog('logBox', 'Error: ' + (e && e.message || e), 'err')
+    }
+    batch.status[i] = result && result.cancelled ? 'cancelled' : (result && result.success ? 'done' : 'failed')
+    renderFiles()
     if (result && result.cancelled) break
   }
 
+  batch.running = false
+  document.title = BASE_TITLE
+  const nDone = batch.status.filter(s => s === 'done').length
+  const nFail = batch.status.filter(s => s === 'failed').length
+  if (files.length > 1 && !batch.status.includes('cancelled')) {
+    document.getElementById('progLabel').textContent = `BATCH FINISHED — ${nDone} OF ${files.length} OK` + (nFail ? ` · ${nFail} FAILED` : '')
+    document.getElementById('batchFill').style.width = '100%'
+    document.getElementById('batchPct').textContent = '100%'
+  }
+  renderFiles()
   document.getElementById('startBtn').disabled = false
   document.getElementById('cancelBtn').style.display = 'none'
 }

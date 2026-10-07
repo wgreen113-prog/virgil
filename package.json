@@ -1,6 +1,6 @@
 {
   "name": "virgil",
-  "version": "1.5.10",
+  "version": "1.5.11",
   "description": "AI Video Remaster Engine by Raven",
   "main": "src/main.js",
   "scripts": {
@@ -34,7 +34,6 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "extract-zip": "^2.0.1"
+    "axios": "^1.6.0"
   }
 }
